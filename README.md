@@ -18,7 +18,109 @@ No real payments or customer funds are involved. All transaction amounts are syn
 
 ---
 
-## Why PayInChaos?
+# Live Demo
+
+## 🌐 Web Operator Dashboard
+
+**Open the deployed dashboard:**
+
+**https://paychaos.onrender.com/**
+
+The web dashboard is the easiest way to explore PayInChaos without installing anything.
+
+### What to do
+
+1. Open the dashboard.
+2. Wait for **SYSTEM ONLINE**.
+3. Scroll to the **CHAOS CONTROL** section.
+4. Choose one of the two demonstrations:
+
+### `INJECT LATENCY SPIKE`
+
+This is the normal recovery demonstration.
+
+```text
+SBI / UPI failure
+        ↓
+Telemetry detects degradation
+        ↓
+Gemini diagnoses the failure
+        ↓
+Guardrails validate the recommendation
+        ↓
+30% bounded traffic is rerouted
+        ↓
+Target traffic is measured
+        ↓
+Recovery is verified
+```
+
+You should see the dashboard update with:
+
+- affected bank
+- failure scenario
+- AI source
+- AI confidence
+- diagnosis
+- target bank
+- payment-method scope
+- traffic percentage
+- guardrail decision
+- recovery outcome
+- before/after success rate
+- rerouted transaction count
+- verification result
+- audit trail
+
+### `RUN CASCADE FAILURE`
+
+This is the safety-boundary demonstration.
+
+```text
+SBI / UPI fails
+        ↓
+Gemini diagnoses the failure
+        ↓
+Gemini recommends AXIS
+        ↓
+Guardrails approve bounded routing
+        ↓
+Traffic begins moving toward AXIS
+        ↓
+AXIS is deliberately degraded
+        ↓
+Target failure is detected
+        ↓
+Active routing rule is cleared
+        ↓
+Autonomous recovery stops
+        ↓
+Operator escalation
+```
+
+This scenario intentionally demonstrates that PayInChaos does **not** blindly continue trying fallback banks forever.
+
+> **A resilient autonomous system needs a stopping rule.**
+
+---
+
+# Quick Start
+
+There are **two ways to use PayInChaos**:
+
+| Method | Best for | Requirements |
+|---|---|---|
+| 🌐 **Web Dashboard** | Quick demo / recruiter review | Browser only |
+| 💻 **Command-Line Dashboard** | Development / detailed local testing | Python + dependencies + Gemini key |
+| 🧪 **Benchmarks & Tests** | Evaluation / engineering verification | Python environment |
+
+If you only want to see the project working, use the **Web Dashboard**.
+
+If you want to inspect, modify, test, or benchmark the system locally, use the **CLI**.
+
+---
+
+# Why PayInChaos?
 
 Payment failures are rarely just "the bank is down."
 
@@ -38,55 +140,55 @@ A naive autonomous router might detect the first failure and immediately keep mo
 PayInChaos treats recovery as a **closed-loop control problem**:
 
 ```text
-                    ┌──────────────────────┐
-                    │    Payment Switch    │
-                    │   Synthetic traffic  │
-                    └──────────┬───────────┘
-                               │
-                               ▼
-                    ┌──────────────────────┐
-                    │    Chaos Engine      │
-                    │   Inject failure     │
-                    └──────────┬───────────┘
-                               │
-                               ▼
-                    ┌──────────────────────┐
-                    │      Telemetry       │
-                    │ SR / P99 / Errors    │
-                    │ Bank + method health │
-                    └──────────┬───────────┘
-                               │
-                               ▼
-                    ┌──────────────────────┐
-                    │       AI Agent       │
-                    │ Diagnose + Recommend │
-                    └──────────┬───────────┘
-                               │ recommendation
-                               ▼
-                    ┌──────────────────────┐
-                    │     Guardrails       │
-                    │ Validate + Bound     │
-                    └──────────┬───────────┘
-                               │ approved action
-                               ▼
-                    ┌──────────────────────┐
-                    │    Traffic Router   │
-                    │ Controlled rerouting │
-                    └──────────┬───────────┘
-                               │
-                               ▼
-                    ┌──────────────────────┐
-                    │     Verification     │
-                    │ Actual target traffic │
-                    │ + success measurement│
-                    └──────────┬───────────┘
-                               │
-                               ▼
-                    ┌──────────────────────┐
-                    │ Recovery Controller  │
-                    │ Continue / Stop /    │
-                    │ Escalate to operator │
-                    └──────────────────────┘
+                     ┌──────────────────────┐
+                     │    Payment Switch    │
+                     │   Synthetic traffic  │
+                     └──────────┬───────────┘
+                                │
+                                ▼
+                     ┌──────────────────────┐
+                     │    Chaos Engine      │
+                     │   Inject failure     │
+                     └──────────┬───────────┘
+                                │
+                                ▼
+                     ┌──────────────────────┐
+                     │      Telemetry       │
+                     │ SR / P99 / Errors    │
+                     │ Bank + method health │
+                     └──────────┬───────────┘
+                                │
+                                ▼
+                     ┌──────────────────────┐
+                     │       AI Agent       │
+                     │ Diagnose + Recommend │
+                     └──────────┬───────────┘
+                                │ recommendation
+                                ▼
+                     ┌──────────────────────┐
+                     │     Guardrails       │
+                     │ Validate + Bound     │
+                     └──────────┬───────────┘
+                                │ approved action
+                                ▼
+                     ┌──────────────────────┐
+                     │    Traffic Router    │
+                     │ Controlled rerouting │
+                     └──────────┬───────────┘
+                                │
+                                ▼
+                     ┌──────────────────────┐
+                     │     Verification     │
+                     │ Actual target traffic│
+                     │ + success measurement│
+                     └──────────┬───────────┘
+                                │
+                                ▼
+                     ┌──────────────────────┐
+                     │ Recovery Controller  │
+                     │ Continue / Stop /    │
+                     │ Escalate to operator  │
+                     └──────────────────────┘
 ```
 
 The key safety boundary is deliberate:
@@ -173,7 +275,7 @@ For this controlled scenario, AXIS is intentionally supplied as the allowed reco
 
 # 3. Telemetry
 
-`app/telemetry.py` continuously evaluates transaction health using:
+`app/telemetry.py` evaluates transaction health using:
 
 - Success rate
 - P99 latency
@@ -396,36 +498,36 @@ The AI is useful for interpreting telemetry and producing a diagnosis.
 The AI is not trusted with unrestricted operational authority.
 
 ```text
-                 ┌─────────────────┐
-                 │       LLM       │
-                 │ Diagnose +       │
-                 │ Recommend        │
-                 └────────┬────────┘
-                          │
-                          ▼
-                 ┌─────────────────┐
-                 │   Guardrails    │
-                 │ Validate + Bound│
-                 └────────┬────────┘
-                          │
-                          ▼
-                 ┌─────────────────┐
-                 │      Router     │
-                 │ Execute only    │
-                 │ approved action │
-                 └────────┬────────┘
-                          │
-                          ▼
-                 ┌─────────────────┐
-                 │    Telemetry    │
-                 │ Measure outcome │
-                 └────────┬────────┘
-                          │
-                          ▼
-                 ┌─────────────────┐
-                 │    Recovery     │
-                 │ Continue / Stop │
-                 └─────────────────┘
+                  ┌─────────────────┐
+                  │       LLM       │
+                  │ Diagnose +      │
+                  │ Recommend       │
+                  └────────┬────────┘
+                           │
+                           ▼
+                  ┌─────────────────┐
+                  │   Guardrails    │
+                  │ Validate + Bound│
+                  └────────┬────────┘
+                           │
+                           ▼
+                  ┌─────────────────┐
+                  │      Router     │
+                  │ Execute only   │
+                  │ approved action │
+                  └────────┬────────┘
+                           │
+                           ▼
+                  ┌─────────────────┐
+                  │    Telemetry    │
+                  │ Measure outcome │
+                  └────────┬────────┘
+                           │
+                           ▼
+                  ┌─────────────────┐
+                  │    Recovery     │
+                  │ Continue / Stop │
+                  └─────────────────┘
 ```
 
 This is the project's central engineering principle:
@@ -449,8 +551,6 @@ If Gemini is unavailable, rate-limited, or fails during execution, PayInChaos ca
 This prevents the resilience system itself from becoming dependent on the availability of its AI provider.
 
 The benchmark also supports **strict Gemini mode**, where fallback is not silently accepted.
-
-That distinction is important for evaluation:
 
 ```text
 Gemini available
@@ -507,122 +607,317 @@ This makes the autonomous control loop inspectable rather than opaque.
 
 ---
 
-# Cascading Failure Demonstration
+# Using the Web Dashboard
 
-The controlled cascade scenario is one of the most important demonstrations in the project.
+## Option A — No installation required
 
-Run:
+Open:
 
-```bash
-python run_dashboard.py --scenario cascade
-```
+**https://paychaos.onrender.com/**
 
-The intended sequence is:
+The deployed frontend communicates with the deployed PayInChaos API.
 
-```text
-1. SBI / UPI fails
-          ↓
-2. AI diagnoses the failure
-          ↓
-3. AI recommends AXIS
-          ↓
-4. Guardrails approve 30%
-          ↓
-5. Router begins controlled rerouting
-          ↓
-6. AXIS is deliberately degraded
-          ↓
-7. Target failure is detected
-          ↓
-8. Routing rule is cleared
-          ↓
-9. Autonomous recovery stops
-          ↓
-10. Operator escalation is required
-```
+### Normal recovery demo
 
-A representative dashboard result:
+In **CHAOS CONTROL**, click:
+
+**`INJECT LATENCY SPIKE`**
+
+Follow the dashboard as it shows:
 
 ```text
-OPERATOR STATUS  ● DEGRADED
-
-SBI       0.0% success    ~4.9s P99    DEGRADED
-AXIS    100.0% success    ~220ms       HEALTHY
-
-SCENARIO  CASCADING_SWITCH_FAILURE
-
-TARGET    AXIS
-SCOPE     UPI
-TRAFFIC   30%
-
-GUARDRAILS
-DECISION  APPROVED
-
-RECOVERY  FAILED
-
-Autonomous recovery stopped:
-target AXIS degraded during recovery;
-operator escalation required.
+Failure
+  ↓
+Telemetry
+  ↓
+AI diagnosis
+  ↓
+Guardrails
+  ↓
+Bounded routing
+  ↓
+Verification
+  ↓
+Recovery
 ```
 
-This is intentional.
+### Cascade safety demo
 
-A resilient autonomous system should not interpret:
+In **CHAOS CONTROL**, click:
 
-> "My first fallback failed"
+**`RUN CASCADE FAILURE`**
 
-as:
+Follow:
 
-> "Try another fallback forever."
+```text
+SBI failure
+  ↓
+AI recommendation
+  ↓
+AXIS fallback
+  ↓
+AXIS failure
+  ↓
+Autonomous recovery stopped
+  ↓
+Operator escalation
+```
 
-It should recognize the boundary of safe autonomy.
+### What the dashboard shows
+
+The dashboard contains four major information areas:
+
+**01 — Switch Health**
+
+- Bank
+- Success rate
+- P99 latency
+- Transaction count
+- Health status
+
+**02 — Active Chaos**
+
+- Scenario
+- Affected bank
+- Payment method
+- Injected latency
+- Failure description
+
+**03 — AI + Guardrails**
+
+- AI source
+- Confidence
+- Diagnosis
+- Target bank
+- Scope
+- Traffic percentage
+- Guardrail decision
+- Cooldown
+
+**04 — Recovery**
+
+- Recovery outcome
+- MTTD
+- MTTR
+- Before/after success rate
+- Synthetic transaction value
+- Failed value
+- Rerouted transactions
+- Verification result
+- Escalation status when autonomy stops
 
 ---
 
-# Normal Failure → Recovery
+# Running Locally — Command-Line Interface
 
-Run:
+The CLI is useful when developing the project, inspecting the full output, or running benchmarks and tests.
+
+## 1. Clone the repository
+
+```bash
+git clone <YOUR_GITHUB_REPOSITORY_URL>
+cd paychaos
+```
+
+If you are already inside the repository, skip this step.
+
+---
+
+## 2. Create the Python environment
+
+```bash
+python -m venv .venv
+```
+
+### Linux / macOS / GitHub Codespaces
+
+```bash
+source .venv/bin/activate
+```
+
+### Windows
+
+```powershell
+.venv\Scripts\activate
+```
+
+---
+
+## 3. Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+## 4. Configure Gemini
+
+Create a `.env` file in the project root:
+
+```env
+GEMINI_API_KEY=your_api_key
+GEMINI_MODEL=gemini-3.6-flash
+```
+
+`.env` is excluded from Git.
+
+---
+
+# CLI Navigation
+
+Once the environment is ready, the main commands are:
+
+## ▶ 1. Run the normal recovery dashboard
 
 ```bash
 python run_dashboard.py
 ```
 
-A representative recovery flow:
+This runs the standard failure/recovery flow.
+
+Conceptually:
 
 ```text
-SBI / UPI
-Success Rate: 0.0%
-P99 Latency: ~4.9s
-        ↓
+SBI / UPI failure
+       ↓
 AI diagnosis
-        ↓
-SBI → HDFC / AXIS
-UPI / 30%
-        ↓
-Guardrails APPROVED
-        ↓
-Router reroutes bounded traffic
-        ↓
-Target traffic succeeds
-        ↓
-Recovery VERIFIED
+       ↓
+Guardrails
+       ↓
+Bounded routing
+       ↓
+Recovery verification
+       ↓
+RECOVERED
 ```
 
-Example measured dashboard outcome:
+---
+
+## ▶ 2. Run the cascading failure demonstration
+
+```bash
+python run_dashboard.py --scenario cascade
+```
+
+This runs the controlled two-stage failure.
 
 ```text
-RECOVERY        SUCCESS
-MTTD            5s
-MTTR            12s
-BEFORE          0.0%
-AFTER           100.0%
-
-Rerouted traffic:
-34 transactions
-100.0% success rate
+SBI fails
+       ↓
+AI recommends AXIS
+       ↓
+Guardrails approve
+       ↓
+Traffic moves
+       ↓
+AXIS fails
+       ↓
+Autonomous recovery stops
+       ↓
+ESCALATED
 ```
 
-Exact transaction counts and synthetic values vary because the dashboard uses seeded synthetic simulation.
+This is the most important demonstration of the project's **bounded autonomy** design.
+
+---
+
+## ▶ 3. Run the complete test suite
+
+```bash
+python -m pytest -q
+```
+
+Expected current result:
+
+```text
+38 passed
+0 failed
+```
+
+The suite validates:
+
+- Payment-switch behavior
+- Chaos injection
+- Telemetry calculations
+- Health-aware target selection
+- AI fallback behavior
+- Guardrail enforcement
+- Cooldown protection
+- Deterministic routing
+- Actual rerouted recovery
+- Cascade failure handling
+- Operator escalation
+- Audit trail behavior
+- Dashboard construction
+- End-to-end recovery
+
+---
+
+## ▶ 4. Run the deterministic benchmark
+
+```bash
+python evals/run_benchmark.py --no-gemini
+```
+
+This evaluates the recovery system without relying on Gemini.
+
+---
+
+## ▶ 5. Run the strict Gemini benchmark
+
+```bash
+python evals/run_benchmark.py --gemini
+```
+
+Strict Gemini mode requires Gemini to actually be available. It fails rather than silently treating deterministic fallback as a Gemini run.
+
+---
+
+# CLI vs Web Dashboard
+
+Both interfaces exercise the same core PayInChaos recovery architecture.
+
+```text
+                    PayInChaos Core
+                         │
+             ┌───────────┴───────────┐
+             │                       │
+             ▼                       ▼
+      Web Dashboard                  CLI
+             │                       │
+             │                       │
+             └───────────┬───────────┘
+                         ▼
+                  Chaos Engine
+                         ↓
+                    Telemetry
+                         ↓
+                     AI Agent
+                         ↓
+                    Guardrails
+                         ↓
+                  Traffic Router
+                         ↓
+                    Verification
+                         ↓
+               Recovery Controller
+```
+
+### Use the Web Dashboard when:
+
+- You want the fastest demo.
+- You want to show the project to a recruiter/interviewer.
+- You want a visual operator experience.
+- You do not want to install Python dependencies.
+
+### Use the CLI when:
+
+- You are developing the project.
+- You want detailed terminal output.
+- You want to run the cascade scenario locally.
+- You want to run tests.
+- You want to run deterministic or Gemini benchmarks.
 
 ---
 
@@ -712,7 +1007,7 @@ JSON benchmark output
 
 The important point is not that Gemini always chooses the same bank as the deterministic fallback.
 
-The important point is that:
+The important point is:
 
 ```text
 Gemini recommendation
@@ -730,133 +1025,132 @@ The AI can reason differently while the operational safety boundary remains dete
 
 ---
 
-# Dashboard
+# Normal Failure → Recovery
 
-PayInChaos includes an operator dashboard with four major panels.
-
-### 01 — Switch Health
-
-Shows:
-
-- Bank
-- Success rate
-- P99 latency
-- Transaction count
-- Health status
-
-### 02 — Active Chaos
-
-Shows:
-
-- Scenario
-- Affected bank
-- Payment method
-- Injected latency
-- Failure description
-
-### 03 — AI + Guardrails
-
-Shows:
-
-- AI source
-- Confidence
-- Diagnosis
-- Target bank
-- Scope
-- Traffic percentage
-- Guardrail decision
-- Cooldown
-
-### 04 — Recovery
-
-Shows:
-
-- Recovery outcome
-- MTTD
-- MTTR
-- Before/after success rate
-- Synthetic transaction value
-- Failed value
-- Rerouted transactions
-- Verification result
-- Escalation status when autonomy stops
-
----
-
-# Running Locally
-
-## 1. Create the environment
-
-```bash
-python -m venv .venv
-```
-
-Linux/macOS/Codespaces:
-
-```bash
-source .venv/bin/activate
-```
-
-Windows:
-
-```powershell
-.venv\Scripts\activate
-```
-
-## 2. Install dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-## 3. Configure Gemini
-
-Create `.env`:
-
-```env
-GEMINI_API_KEY=your_api_key
-GEMINI_MODEL=gemini-3.6-flash
-```
-
-`.env` is excluded from Git.
-
-## 4. Run the full test suite
-
-```bash
-python -m pytest -q
-```
-
-Expected:
-
-```text
-38 passed
-```
-
-## 5. Run the normal dashboard
+The normal CLI demonstration is:
 
 ```bash
 python run_dashboard.py
 ```
 
-## 6. Run the cascade demonstration
+A representative recovery flow:
+
+```text
+SBI / UPI
+Success Rate: 0.0%
+P99 Latency: ~4.9s
+        ↓
+AI diagnosis
+        ↓
+SBI → HDFC / AXIS
+UPI / 30%
+        ↓
+Guardrails APPROVED
+        ↓
+Router reroutes bounded traffic
+        ↓
+Target traffic succeeds
+        ↓
+Recovery VERIFIED
+```
+
+Example measured dashboard outcome:
+
+```text
+RECOVERY        SUCCESS
+MTTD            5s
+MTTR            12s
+BEFORE          0.0%
+AFTER           100.0%
+
+Rerouted traffic:
+34 transactions
+100.0% success rate
+```
+
+Exact transaction counts and synthetic values vary because the dashboard uses seeded synthetic simulation.
+
+---
+
+# Cascading Failure Demonstration
+
+The controlled cascade scenario is one of the most important demonstrations in the project.
+
+### CLI
 
 ```bash
 python run_dashboard.py --scenario cascade
 ```
 
-## 7. Run deterministic benchmark
+### Web
 
-```bash
-python evals/run_benchmark.py --no-gemini
+Open:
+
+**https://paychaos.onrender.com/**
+
+Then select:
+
+**`RUN CASCADE FAILURE`**
+
+### Intended sequence
+
+```text
+1. SBI / UPI fails
+          ↓
+2. AI diagnoses the failure
+          ↓
+3. AI recommends AXIS
+          ↓
+4. Guardrails approve 30%
+          ↓
+5. Router begins controlled rerouting
+          ↓
+6. AXIS is deliberately degraded
+          ↓
+7. Target failure is detected
+          ↓
+8. Routing rule is cleared
+          ↓
+9. Autonomous recovery stops
+          ↓
+10. Operator escalation is required
 ```
 
-## 8. Run strict Gemini benchmark
+Representative result:
 
-```bash
-python evals/run_benchmark.py --gemini
+```text
+OPERATOR STATUS  ● DEGRADED
+
+SBI       0.0% success    ~4.9s P99    DEGRADED
+AXIS    100.0% success    ~220ms       HEALTHY
+
+SCENARIO  CASCADING_SWITCH_FAILURE
+
+TARGET    AXIS
+SCOPE     UPI
+TRAFFIC   30%
+
+GUARDRAILS
+DECISION  APPROVED
+
+RECOVERY  FAILED
+
+Autonomous recovery stopped:
+target AXIS degraded during recovery;
+operator escalation required.
 ```
 
-Strict Gemini mode fails rather than silently falling back if Gemini cannot be used.
+This is intentional.
+
+A resilient autonomous system should not interpret:
+
+> "My first fallback failed"
+
+as:
+
+> "Try another fallback forever."
+
+It should recognize the boundary of safe autonomy.
 
 ---
 
@@ -882,11 +1176,26 @@ paychaos/
 │   ├── recovery.py
 │   └── dashboard.py
 │
+├── api/
+│   ├── __init__.py
+│   └── main.py
+│
+├── frontend/
+│   ├── src/
+│   │   ├── App.jsx
+│   │   ├── index.css
+│   │   └── main.jsx
+│   ├── public/
+│   ├── index.html
+│   ├── package.json
+│   └── vite.config.js
+│
 ├── evals/
 │   ├── scenarios.json
 │   ├── run_benchmark.py
 │   └── test_resilience.py
 │
+├── run_dashboard.py
 ├── test_switch.py
 ├── test_guardrails.py
 ├── test_router.py
@@ -896,6 +1205,72 @@ paychaos/
 ├── test_fallback_policy.py
 ├── test_health_aware_routing.py
 └── test_dashboard.py
+```
+
+---
+
+# API
+
+The deployed backend is available at:
+
+**https://paychaos-api.onrender.com/**
+
+Health check:
+
+**https://paychaos-api.onrender.com/api/health**
+
+Expected response:
+
+```json
+{
+  "status": "ok",
+  "service": "paychaos"
+}
+```
+
+The demo endpoints are POST endpoints and are intended to be triggered through the web dashboard:
+
+```text
+POST /api/demo/normal
+POST /api/demo/cascade
+```
+
+A browser opened directly to these POST endpoints may show:
+
+```text
+405 Method Not Allowed
+```
+
+That is expected because a normal browser navigation sends a GET request.
+
+The web frontend handles the correct POST requests for the operator.
+
+---
+
+# Local Web Development
+
+The project also contains a Vite frontend.
+
+From the `frontend` directory:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The Vite development server proxies API requests to the local FastAPI backend.
+
+In another terminal, from the repository root:
+
+```bash
+uvicorn api.main:app --reload
+```
+
+The production frontend is configured to use the deployed API through:
+
+```env
+VITE_API_BASE_URL=https://paychaos-api.onrender.com
 ```
 
 ---
@@ -1064,14 +1439,64 @@ The purpose of PayInChaos is to demonstrate the **AI control-loop and resilience
 ✓ 5s MTTD
 ✓ 12s MTTR
 ✓ 38 automated tests passing
+✓ Public web operator dashboard
+✓ Public FastAPI backend
 ```
 
 ---
 
-## Built for the Razorpay AI Builder Opportunity
+# Built for the Razorpay AI Builder Opportunity
 
 **Focus:** AI-assisted payment reliability, autonomous recovery, and safe system control.
 
 PayInChaos demonstrates how AI can be placed inside a controlled operational loop where:
 
-**reasoning is probabilistic, execution is deterministic, recovery is evidence-based, and autonomy has a safety boundary.**
+> **reasoning is probabilistic, execution is deterministic, recovery is evidence-based, and autonomy has a safety boundary.**
+
+---
+
+# Demo Checklist
+
+For a quick walkthrough:
+
+### 🌐 Web
+
+Open:
+
+**https://paychaos.onrender.com/**
+
+Then:
+
+1. Confirm **SYSTEM ONLINE**
+2. Find **CHAOS CONTROL**
+3. Click **INJECT LATENCY SPIKE**
+4. Observe AI diagnosis and guardrail approval
+5. Observe bounded traffic rerouting
+6. Observe recovery verification
+7. Click **RUN CASCADE FAILURE**
+8. Observe AXIS degradation
+9. Observe autonomous recovery stopping
+10. Observe operator escalation
+
+### 💻 CLI
+
+```bash
+# Normal recovery
+python run_dashboard.py
+
+# Cascade safety boundary
+python run_dashboard.py --scenario cascade
+
+# Full tests
+python -m pytest -q
+
+# Deterministic benchmark
+python evals/run_benchmark.py --no-gemini
+
+# Strict Gemini benchmark
+python evals/run_benchmark.py --gemini
+```
+
+**Recommended first experience:** use the live web dashboard.
+
+**Recommended engineering verification:** use the CLI test suite and benchmarks.

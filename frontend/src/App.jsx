@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
@@ -6,19 +6,21 @@ const BANKS = ["HDFC", "ICICI", "SBI", "AXIS"];
 
 function formatRupees(paise) {
   if (paise == null) return "₹0";
+
   return `₹${(paise / 100).toLocaleString("en-IN", {
     maximumFractionDigits: 0,
   })}`;
 }
 
 function bankStatus(bank) {
-  if (!bank) return "UNKNOWN";
+  if (!bank) return "READY";
   if (bank.healthy === false) return "DEGRADED";
   return "HEALTHY";
 }
 
 function statusClass(status) {
-  return status.toLowerCase();
+  if (status === "DEGRADED") return "degraded";
+  return "healthy";
 }
 
 function App() {
@@ -55,9 +57,7 @@ function App() {
     }
   }
 
-  useEffect(() => {
-    runScenario("normal");
-  }, []);
+  const hasRun = Boolean(data);
 
   const banks = data?.bank_health || {};
   const incident = data?.anomaly_snapshot;
@@ -72,6 +72,14 @@ function App() {
   const recovered = data?.outcome === "RECOVERED";
   const escalated = data?.outcome === "ESCALATED";
 
+  const operatorStatus = !hasRun
+    ? "READY"
+    : recovered
+      ? "RECOVERED"
+      : escalated
+        ? "ESCALATED"
+        : "DEGRADED";
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -80,6 +88,7 @@ function App() {
             <span className="brand-mark">P</span>
             <span>PAYINCHAOS</span>
           </div>
+
           <p className="subtitle">
             Autonomous Payment-Switch Resilience
           </p>
@@ -95,11 +104,13 @@ function App() {
         <section className="hero-row">
           <div>
             <p className="eyebrow">RESILIENCE CONTROL PLANE</p>
+
             <h1>
               Payment infrastructure
               <br />
               under pressure.
             </h1>
+
             <p className="hero-copy">
               Deliberately inject failures. Let AI diagnose them.
               Keep execution bounded by deterministic safety
@@ -109,27 +120,41 @@ function App() {
 
           <div
             className={`operator-status ${
-              recovered ? "recovered" : "degraded"
+              !hasRun
+                ? "ready"
+                : recovered
+                  ? "recovered"
+                  : "degraded"
             }`}
           >
             <span className="status-label">
               OPERATOR STATUS
             </span>
+
             <strong>
-              {recovered ? "● RECOVERED" : "● DEGRADED"}
+              {operatorStatus === "READY"
+                ? "● READY"
+                : operatorStatus === "RECOVERED"
+                  ? "● RECOVERED"
+                  : operatorStatus === "ESCALATED"
+                    ? "● ESCALATED"
+                    : "● DEGRADED"}
             </strong>
           </div>
         </section>
 
         <section className="bank-grid">
           {BANKS.map((name) => {
-            const bank = banks[`BankName.${name}`] || banks[name];
+            const bank =
+              banks[`BankName.${name}`] || banks[name];
+
             const status = bankStatus(bank);
 
             return (
               <div className="bank-card" key={name}>
                 <div className="bank-card-top">
                   <span className="bank-name">{name}</span>
+
                   <span
                     className={`bank-indicator ${statusClass(
                       status
@@ -145,10 +170,11 @@ function App() {
 
                 <div className="bank-meta">
                   <span>{status}</span>
+
                   <span>
                     {bank
                       ? `${bank.p99_latency_ms.toFixed(0)}ms P99`
-                      : "—"}
+                      : "Awaiting telemetry"}
                   </span>
                 </div>
               </div>
@@ -163,66 +189,111 @@ function App() {
           </div>
         )}
 
-        <section className="incident-section">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">LIVE INCIDENT</p>
-              <h2>
-                {data
-                  ? `${data.affected_bank} / ${
-                      incident?.method || "UPI"
-                    }`
-                  : "Waiting for incident"}
-              </h2>
-            </div>
+        {!hasRun ? (
+          <section className="incident-section">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">SYSTEM STATE</p>
 
-            {data && (
-              <div
-                className={`incident-badge ${
-                  escalated ? "danger" : "warning"
-                }`}
-              >
-                {escalated ? "CASCADE DETECTED" : "DEGRADED"}
+                <h2>All payment switches ready.</h2>
               </div>
-            )}
-          </div>
 
-          <div className="metric-strip">
-            <div>
-              <span>P99 LATENCY</span>
-              <strong>
-                {incident
-                  ? `${incident.p99_latency_ms.toFixed(0)} ms`
-                  : "—"}
-              </strong>
+              <div className="incident-badge healthy">
+                NO ACTIVE INCIDENT
+              </div>
             </div>
 
-            <div>
-              <span>SUCCESS RATE</span>
-              <strong>
-                {incident
-                  ? `${incident.success_rate.toFixed(1)}%`
-                  : "—"}
-              </strong>
+            <div className="metric-strip">
+              <div>
+                <span>ACTIVE CHAOS</span>
+                <strong>NONE</strong>
+              </div>
+
+              <div>
+                <span>AI AGENT</span>
+                <strong>STANDBY</strong>
+              </div>
+
+              <div>
+                <span>ROUTER</span>
+                <strong>NO RULES</strong>
+              </div>
+
+              <div>
+                <span>OPERATOR</span>
+                <strong>READY</strong>
+              </div>
+            </div>
+          </section>
+        ) : (
+          <section className="incident-section">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">LIVE INCIDENT</p>
+
+                <h2>
+                  {data
+                    ? `${data.affected_bank} / ${
+                        incident?.method || "UPI"
+                      }`
+                    : "Waiting for incident"}
+                </h2>
+              </div>
+
+              {data && (
+                <div
+                  className={`incident-badge ${
+                    escalated ? "danger" : "warning"
+                  }`}
+                >
+                  {escalated
+                    ? "CASCADE DETECTED"
+                    : "DEGRADED"}
+                </div>
+              )}
             </div>
 
-            <div>
-              <span>FAILED REQUESTS</span>
-              <strong>
-                {incident
-                  ? incident.failed_transactions
-                  : "—"}
-              </strong>
-            </div>
+            <div className="metric-strip">
+              <div>
+                <span>P99 LATENCY</span>
 
-            <div>
-              <span>ERROR</span>
-              <strong className="mono">
-                GATEWAY_TIMEOUT
-              </strong>
+                <strong>
+                  {incident
+                    ? `${incident.p99_latency_ms.toFixed(0)} ms`
+                    : "—"}
+                </strong>
+              </div>
+
+              <div>
+                <span>SUCCESS RATE</span>
+
+                <strong>
+                  {incident
+                    ? `${incident.success_rate.toFixed(1)}%`
+                    : "—"}
+                </strong>
+              </div>
+
+              <div>
+                <span>FAILED REQUESTS</span>
+
+                <strong>
+                  {incident
+                    ? incident.failed_transactions
+                    : "—"}
+                </strong>
+              </div>
+
+              <div>
+                <span>ERROR</span>
+
+                <strong className="mono">
+                  GATEWAY_TIMEOUT
+                </strong>
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         <section className="decision-grid">
           <div className="panel">
@@ -244,14 +315,16 @@ function App() {
 
             <div className="source-row">
               <span className="source-dot" />
+
               <span>
-                {diagnosis?.source || "Awaiting diagnosis"}
+                {diagnosis?.source ||
+                  "Awaiting scenario"}
               </span>
             </div>
 
             <p className="diagnosis">
               {diagnosis?.diagnosis ||
-                "Run a scenario to generate an AI diagnosis."}
+                "No active incident. Inject a controlled failure to generate an AI diagnosis from live telemetry."}
             </p>
 
             {action && (
@@ -262,7 +335,9 @@ function App() {
                   <strong>
                     {action.isolated_bank}
                   </strong>
+
                   <span className="arrow">→</span>
+
                   <strong>
                     {action.target_bank}
                   </strong>
@@ -270,6 +345,7 @@ function App() {
 
                 <div className="recommendation-meta">
                   <span>{action.scope}</span>
+
                   <span>
                     {action.traffic_percentage}% TRAFFIC
                   </span>
@@ -281,7 +357,10 @@ function App() {
           <div className="panel">
             <div className="panel-header">
               <div>
-                <p className="eyebrow">CONTROL PLANE</p>
+                <p className="eyebrow">
+                  CONTROL PLANE
+                </p>
+
                 <h3>Execution chain</h3>
               </div>
             </div>
@@ -289,25 +368,41 @@ function App() {
             <div className="execution-chain">
               <div className="chain-step">
                 <span className="chain-number">01</span>
+
                 <div>
                   <strong>AI RECOMMENDATION</strong>
-                  <span>Reason over telemetry</span>
+
+                  <span>
+                    {diagnosis
+                      ? "Reason over telemetry"
+                      : "Awaiting incident"}
+                  </span>
                 </div>
-                <span className="check">✓</span>
+
+                <span
+                  className={
+                    diagnosis ? "check" : "pending"
+                  }
+                >
+                  {diagnosis ? "✓" : "—"}
+                </span>
               </div>
 
               <div className="chain-line" />
 
               <div className="chain-step">
                 <span className="chain-number">02</span>
+
                 <div>
                   <strong>GUARDRAILS</strong>
+
                   <span>
                     {guardrails?.approved
                       ? "Action authorized"
                       : "Awaiting authorization"}
                   </span>
                 </div>
+
                 <span
                   className={
                     guardrails?.approved
@@ -323,14 +418,17 @@ function App() {
 
               <div className="chain-step">
                 <span className="chain-number">03</span>
+
                 <div>
                   <strong>ROUTER</strong>
+
                   <span>
                     {routing
                       ? `${routing.traffic_percentage}% traffic shifted`
                       : "No route applied"}
                   </span>
                 </div>
+
                 <span
                   className={
                     routing ? "check" : "pending"
@@ -344,30 +442,35 @@ function App() {
 
               <div className="chain-step">
                 <span className="chain-number">04</span>
+
                 <div>
                   <strong>TELEMETRY</strong>
+
                   <span>
                     {verification?.recovered
                       ? "Recovery verified"
                       : escalated
-                      ? "Target degradation detected"
-                      : "Awaiting verification"}
+                        ? "Target degradation detected"
+                        : hasRun
+                          ? "Awaiting verification"
+                          : "Monitoring system"}
                   </span>
                 </div>
+
                 <span
                   className={
                     verification?.recovered
                       ? "check"
                       : escalated
-                      ? "danger-check"
-                      : "pending"
+                        ? "danger-check"
+                        : "pending"
                   }
                 >
                   {verification?.recovered
                     ? "✓"
                     : escalated
-                    ? "!"
-                    : "—"}
+                      ? "!"
+                      : "—"}
                 </span>
               </div>
             </div>
@@ -381,26 +484,67 @@ function App() {
         >
           <div className="outcome-heading">
             <div>
-              <p className="eyebrow">RECOVERY OUTCOME</p>
+              <p className="eyebrow">
+                RECOVERY OUTCOME
+              </p>
+
               <h2>
-                {recovered
-                  ? "Recovery verified."
-                  : escalated
-                  ? "Autonomous recovery stopped."
-                  : "Recovery pending."}
+                {!hasRun
+                  ? "Awaiting a controlled failure."
+                  : recovered
+                    ? "Recovery verified."
+                    : escalated
+                      ? "Autonomous recovery stopped."
+                      : "Recovery pending."}
               </h2>
             </div>
 
-            <div
-              className={`outcome-badge ${
-                recovered ? "success" : "danger"
-              }`}
-            >
-              {recovered ? "RECOVERED" : "ESCALATED"}
-            </div>
+            {hasRun && (
+              <div
+                className={`outcome-badge ${
+                  recovered ? "success" : "danger"
+                }`}
+              >
+                {recovered
+                  ? "RECOVERED"
+                  : "ESCALATED"}
+              </div>
+            )}
           </div>
 
-          {escalated ? (
+          {!hasRun ? (
+            <div className="recovery-stats">
+              <div className="recovery-stat">
+                <span>BEFORE</span>
+                <strong>—</strong>
+              </div>
+
+              <div className="recovery-arrow">→</div>
+
+              <div className="recovery-stat">
+                <span>AFTER</span>
+                <strong>—</strong>
+              </div>
+
+              <div className="recovery-stat">
+                <span>MTTD</span>
+                <strong>—</strong>
+              </div>
+
+              <div className="recovery-stat">
+                <span>MTTR</span>
+                <strong>—</strong>
+              </div>
+
+              <div className="recovery-stat value-stat">
+                <span>
+                  SYNTHETIC TRANSACTION VALUE
+                </span>
+
+                <strong>₹0</strong>
+              </div>
+            </div>
+          ) : escalated ? (
             <div className="cascade-flow">
               <div className="cascade-node failed">
                 <strong>SBI</strong>
@@ -425,6 +569,7 @@ function App() {
             <div className="recovery-stats">
               <div className="recovery-stat">
                 <span>BEFORE</span>
+
                 <strong>
                   {verification
                     ? `${verification.before_success_rate.toFixed(
@@ -438,6 +583,7 @@ function App() {
 
               <div className="recovery-stat">
                 <span>AFTER</span>
+
                 <strong>
                   {verification
                     ? `${verification.after_success_rate.toFixed(
@@ -449,6 +595,7 @@ function App() {
 
               <div className="recovery-stat">
                 <span>MTTD</span>
+
                 <strong>
                   {metrics
                     ? `${metrics.mttd_seconds}s`
@@ -458,6 +605,7 @@ function App() {
 
               <div className="recovery-stat">
                 <span>MTTR</span>
+
                 <strong>
                   {metrics?.mttr_seconds != null
                     ? `${metrics.mttr_seconds}s`
@@ -466,7 +614,10 @@ function App() {
               </div>
 
               <div className="recovery-stat value-stat">
-                <span>SYNTHETIC TRANSACTION VALUE</span>
+                <span>
+                  SYNTHETIC TRANSACTION VALUE
+                </span>
+
                 <strong>
                   {formatRupees(
                     metrics?.recovered_amount_paise
@@ -486,7 +637,10 @@ function App() {
         <section className="audit-section">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">IMMUTABLE AUDIT TRAIL</p>
+              <p className="eyebrow">
+                IMMUTABLE AUDIT TRAIL
+              </p>
+
               <h2>Decision history</h2>
             </div>
 
@@ -495,42 +649,80 @@ function App() {
             </span>
           </div>
 
-          <div className="audit-list">
-            {auditTrail.map((event) => (
-              <div
-                className="audit-row"
-                key={event.sequence}
-              >
+          {auditTrail.length > 0 ? (
+            <div className="audit-list">
+              {auditTrail.map((event) => (
+                <div
+                  className="audit-row"
+                  key={event.sequence}
+                >
+                  <span className="audit-number">
+                    {String(event.sequence).padStart(
+                      2,
+                      "0"
+                    )}
+                  </span>
+
+                  <span className="audit-actor">
+                    {event.actor}
+                  </span>
+
+                  <strong className="audit-event">
+                    {event.event_type}
+                  </strong>
+
+                  <span className="audit-detail">
+                    {event.details}
+                  </span>
+
+                  <span className="audit-time">
+                    t=
+                    {event.timestamp_seconds.toFixed(
+                      1
+                    )}
+                    s
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="audit-list">
+              <div className="audit-row">
                 <span className="audit-number">
-                  {String(event.sequence).padStart(2, "0")}
+                  00
                 </span>
 
                 <span className="audit-actor">
-                  {event.actor}
+                  SYSTEM
                 </span>
 
                 <strong className="audit-event">
-                  {event.event_type}
+                  STANDBY
                 </strong>
 
                 <span className="audit-detail">
-                  {event.details}
+                  No incident has been injected. The
+                  control plane is ready for a
+                  controlled resilience test.
                 </span>
 
                 <span className="audit-time">
-                  t={event.timestamp_seconds.toFixed(1)}s
+                  t=0.0s
                 </span>
               </div>
-            ))}
-          </div>
+            </div>
+          )}
         </section>
 
         <section className="controls">
           <div>
-            <p className="eyebrow">CHAOS CONTROL</p>
+            <p className="eyebrow">
+              CHAOS CONTROL
+            </p>
+
             <p className="control-copy">
-              Run a controlled failure against the simulated
-              payment switches.
+              Run a controlled failure against the
+              simulated payment switches.
             </p>
           </div>
 
@@ -560,6 +752,7 @@ function App() {
 
       <footer>
         <span>PAYINCHAOS</span>
+
         <span>
           AI RECOMMENDS · GUARDRAILS AUTHORIZE · ROUTER
           EXECUTES · TELEMETRY VERIFIES

@@ -308,7 +308,7 @@ Scenarios recovered:       4 / 4
 Recovery rate:             100%
 Synthetic transactions:    1,000
 Rerouted transactions:     164
-Recovered revenue:         ₹16,200
+Recovered synthetic transaction value:         ₹16,200
 Guardrail violations:      0
 MTTD:                      5.0 seconds
 MTTR:                      12.0 seconds
@@ -411,7 +411,7 @@ Displays:
 * MTTD
 * MTTR
 * Before/after success rate
-* Recovered revenue
+* Recovered synthetic transaction value
 * Failed amount
 * Rerouted transactions
 * Verification reason
@@ -638,7 +638,7 @@ Current verified deterministic benchmark:
 ✓ 4/4 recovery scenarios
 ✓ 1,000 synthetic transactions
 ✓ 164 actual reroutes
-✓ ₹16,200 recovered revenue
+✓ ₹16,200 synthetic transaction value recovered
 ✓ 100% scenario recovery
 ✓ 0 guardrail violations
 ✓ 5s MTTD
@@ -648,8 +648,8 @@ Current verified deterministic benchmark:
 
 ---
 
-## Built for the Razorpay AI Builder Challenge
+## Built for the Razorpay AI Builder Opportunity
 
-**Track:** AI Revenue Recovery / Switch Resilience
+**Focus:** AI-assisted payment reliability, autonomous recovery, and safe system control
 
 PayInChaos demonstrates how AI can be placed inside a controlled operational loop where **reasoning is probabilistic, execution is deterministic, and recovery is evidence-based.**

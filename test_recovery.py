@@ -279,3 +279,64 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+def test_cascading_switch_failure_stops_autonomous_routing_and_escalates() -> None:
+    """Cascading target failure must stop autonomous recovery."""
+
+    clock = FakeClock()
+
+    controller = RecoveryController(
+        clock=clock,
+        use_gemini=False,
+    )
+
+    transactions = [
+        (10000, PaymentMethod.UPI, BankName.SBI),
+        (20000, PaymentMethod.UPI, BankName.SBI),
+        (15000, PaymentMethod.UPI, BankName.SBI),
+        (25000, PaymentMethod.UPI, BankName.SBI),
+        (30000, PaymentMethod.UPI, BankName.SBI),
+        (12000, PaymentMethod.UPI, BankName.SBI),
+        (18000, PaymentMethod.UPI, BankName.SBI),
+        (22000, PaymentMethod.UPI, BankName.SBI),
+        (14000, PaymentMethod.UPI, BankName.SBI),
+        (16000, PaymentMethod.UPI, BankName.SBI),
+    ]
+
+    run = controller.run_recovery_cycle(
+        scenario=ChaosScenario.CASCADING_SWITCH_FAILURE,
+        transactions_before_recovery=transactions,
+        transactions_after_recovery=transactions,
+        detection_delay_seconds=5.0,
+        diagnosis_delay_seconds=2.0,
+        execution_delay_seconds=2.0,
+        verification_delay_seconds=3.0,
+    )
+
+    assert run.outcome == "ESCALATED"
+    assert run.escalation_required is True
+    assert run.autonomous_routing_stopped is True
+
+    assert run.routing_rule is not None
+    assert run.routing_rule.target_bank is BankName.AXIS
+
+    assert run.verification is not None
+    assert run.verification.recovered is False
+
+    # The controller must remove the route once the recovery
+    # target itself becomes unhealthy.
+    assert controller.router.active_rules == ()
+
+    audit_events = {
+        event.event_type
+        for event in run.audit_trail
+    }
+
+    assert "CHAOS_INJECTED" in audit_events
+    assert "ANOMALY_DETECTED" in audit_events
+    assert "AI_DIAGNOSED" in audit_events
+    assert "GUARDRAIL_APPROVED" in audit_events
+    assert "TRAFFIC_REROUTED" in audit_events
+    assert "TARGET_DEGRADED" in audit_events
+    assert "RECOVERY_ABORTED" in audit_events
+    assert "OPERATOR_ESCALATION" in audit_events

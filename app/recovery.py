@@ -115,6 +115,17 @@ class RecoveryVerification:
 
 
 @dataclass(frozen=True, slots=True)
+class AuditEvent:
+    """Immutable control-plane audit record for one recovery run."""
+
+    sequence: int
+    actor: str
+    event_type: str
+    timestamp_seconds: float
+    details: str
+
+
+@dataclass(frozen=True, slots=True)
 class RecoveryRun:
     """Complete result of one autonomous recovery cycle."""
 
@@ -139,6 +150,12 @@ class RecoveryRun:
     bank_health: dict[BankName, BankHealth] = field(
         default_factory=dict
     )
+
+    # Explicit terminal state for operators and the dashboard.
+    outcome: str = "RECOVERED"
+    escalation_required: bool = False
+    autonomous_routing_stopped: bool = False
+    audit_trail: tuple[AuditEvent, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -350,6 +367,25 @@ class RecoveryController:
         affected_bank = scenario_event.bank
         failure_start = self.clock()
 
+        audit: list[AuditEvent] = []
+
+        def record_audit(actor: str, event_type: str, details: str) -> None:
+            audit.append(
+                AuditEvent(
+                    sequence=len(audit) + 1,
+                    actor=actor,
+                    event_type=event_type,
+                    timestamp_seconds=round(self.clock(), 3),
+                    details=details,
+                )
+            )
+
+        record_audit(
+            "CHAOS_ENGINE",
+            "CHAOS_INJECTED",
+            f"{scenario.value} injected on {affected_bank.value}.",
+        )
+
         before_results: list[TransactionResult] = []
 
         for amount, method, bank in (
@@ -370,6 +406,16 @@ class RecoveryController:
             bank=affected_bank
         )
 
+        record_audit(
+            "TELEMETRY",
+            "ANOMALY_DETECTED",
+            (
+                f"{affected_bank.value} detected at "
+                f"{anomaly_snapshot.success_rate:.1f}% success rate and "
+                f"{anomaly_snapshot.p99_latency_ms:.1f}ms P99 latency."
+            ),
+        )
+
         detection_time = self.clock()
 
         mttd = max(
@@ -386,7 +432,8 @@ class RecoveryController:
         )
 
         self._advance_time(
-            diagnosis_delay_seconds
+            diagnosis_delay_seconds,
+            tick_chaos=False,
         )
 
         healthy_banks = self.telemetry.healthy_banks(
@@ -402,6 +449,13 @@ class RecoveryController:
             ),
         )
 
+        record_audit(
+            "AI_AGENT",
+            "AI_DIAGNOSED",
+            getattr(diagnosis, "diagnosis", None)
+            or "AI diagnosis completed.",
+        )
+
         guardrail_decision: GuardrailDecision | None = None
         routing_rule: RoutingRule | None = None
 
@@ -410,13 +464,137 @@ class RecoveryController:
                 diagnosis
             )
 
+            record_audit(
+                "GUARDRAILS",
+                (
+                    "GUARDRAIL_APPROVED"
+                    if guardrail_decision.approved
+                    else "GUARDRAIL_REJECTED"
+                ),
+                getattr(guardrail_decision, "status", "Decision recorded."),
+            )
+
             if guardrail_decision.approved:
                 self._advance_time(
-                    execution_delay_seconds
+                    execution_delay_seconds,
+                    tick_chaos=(
+                        scenario is not ChaosScenario.CASCADING_SWITCH_FAILURE
+                    ),
                 )
 
                 routing_rule = self.execute(
                     guardrail_decision
+                )
+                record_audit(
+                    "ROUTER",
+                    "TRAFFIC_REROUTED",
+                    (
+                        f"{routing_rule.isolated_bank.value} -> "
+                        f"{routing_rule.target_bank.value}, "
+                        f"{routing_rule.traffic_percentage:.0f}% traffic, "
+                        f"{routing_rule.scope}."
+                    ),
+                )
+
+        # Cascading failure safety boundary. The primary failure is SBI,
+        # while AXIS is the AI-selected recovery target. The cascade trigger
+        # is measured from scenario start, so evaluate it at the current
+        # simulated time immediately after the route is installed.
+        if (
+            scenario is ChaosScenario.CASCADING_SWITCH_FAILURE
+            and routing_rule is not None
+        ):
+            self.chaos.tick(self.clock())
+            scenario_event = self.chaos.active_event or scenario_event
+
+            secondary_bank = routing_rule.target_bank
+            secondary_snapshot = self.observe(
+                bank=secondary_bank,
+                method=affected_method,
+            )
+            # The chaos engine is the authoritative source for whether the
+            # injected secondary failure has actually activated. Do not require
+            # a telemetry sample from AXIS here: the verification sample has
+            # not run yet, so AXIS may legitimately have zero observations.
+            secondary_active = (
+                self.chaos.cascade_triggered
+                or getattr(
+                    scenario_event,
+                    "secondary_failure_active",
+                    False,
+                )
+            )
+
+            if secondary_active:
+                record_audit(
+                    "TELEMETRY",
+                    "TARGET_DEGRADED",
+                    (
+                        f"Recovery target {secondary_bank.value} became degraded "
+                        f"after the configured cascade trigger at "
+                        f"t={self.clock():.1f}s. "
+                        f"Current observed sample: "
+                        f"{secondary_snapshot.success_rate:.1f}% success rate, "
+                        f"{secondary_snapshot.p99_latency_ms:.1f}ms P99."
+                    ),
+                )
+
+                # Safety boundary: remove the active route before any further
+                # transaction can be sent into the degraded target.
+                self.router.clear_rules()
+                record_audit(
+                    "RECOVERY_CONTROLLER",
+                    "RECOVERY_ABORTED",
+                    (
+                        f"Autonomous recovery stopped because target "
+                        f"{secondary_bank.value} became unhealthy."
+                    ),
+                )
+                record_audit(
+                    "RECOVERY_CONTROLLER",
+                    "OPERATOR_ESCALATION",
+                    (
+                        "Recovery target failed during intervention; "
+                        "manual operator action is required."
+                    ),
+                )
+
+                failed_amount_paise = sum(
+                    result.amount_paise
+                    for result in before_results
+                    if not result.success
+                )
+                verification = self._build_escalation_verification(
+                    before=diagnosis_snapshot,
+                    reason=(
+                        f"Autonomous recovery stopped: target {secondary_bank.value} "
+                        "degraded during recovery; operator escalation required."
+                    ),
+                )
+                metrics = RecoveryMetrics(
+                    mttd_seconds=round(mttd, 3),
+                    mttr_seconds=None,
+                    failed_amount_paise=failed_amount_paise,
+                    recovered_amount_paise=0,
+                )
+
+                return RecoveryRun(
+                    scenario=scenario,
+                    affected_bank=affected_bank,
+                    anomaly_snapshot=anomaly_snapshot,
+                    diagnosis=diagnosis,
+                    guardrail_decision=guardrail_decision,
+                    routing_rule=routing_rule,
+                    verification=verification,
+                    metrics=metrics,
+                    chaos_event=scenario_event,
+                    bank_health=self.telemetry.all_bank_health(
+                        now=self.clock()
+                    ),
+                    outcome="ESCALATED",
+                    escalation_required=True,
+                    autonomous_routing_stopped=True,
+                    audit_trail=tuple(audit),
                 )
 
         recovery_results: list[_RecoveryResult] = []
@@ -449,6 +627,12 @@ class RecoveryController:
             before=diagnosis_snapshot,
             recovery_results=recovery_results,
             routing_rule=routing_rule,
+        )
+
+        record_audit(
+            "TELEMETRY",
+            "RECOVERY_VERIFIED" if verification.recovered else "RECOVERY_FAILED",
+            verification.reason,
         )
 
         recovery_end = self.clock()
@@ -511,6 +695,34 @@ class RecoveryController:
             metrics=metrics,
             chaos_event=scenario_event,
             bank_health=bank_health,
+            outcome="RECOVERED" if verification.recovered else "FAILED",
+            escalation_required=False,
+            autonomous_routing_stopped=False,
+            audit_trail=tuple(audit),
+        )
+
+    def _build_escalation_verification(
+        self,
+        *,
+        before: TelemetrySnapshot,
+        reason: str,
+    ) -> RecoveryVerification:
+        """Build explicit negative evidence for a safety escalation."""
+
+        return RecoveryVerification(
+            recovered=False,
+            before_success_rate=before.success_rate,
+            after_success_rate=before.success_rate,
+            before_p99_latency_ms=before.p99_latency_ms,
+            after_p99_latency_ms=before.p99_latency_ms,
+            successful_transactions=0,
+            failed_transactions=0,
+            attempted_recovery_amount_paise=0,
+            recovered_amount_paise=0,
+            rerouted_transactions=0,
+            successful_rerouted_transactions=0,
+            rerouted_success_rate=0.0,
+            reason=reason,
         )
 
     def _verify_recovery(
@@ -862,8 +1074,10 @@ class RecoveryController:
     def _advance_time(
         self,
         seconds: float,
+        *,
+        tick_chaos: bool = True,
     ) -> None:
-        """Advance an injectable simulation clock."""
+        """Advance the simulation clock and optionally advance chaos."""
 
         if seconds <= 0:
             return
@@ -879,9 +1093,10 @@ class RecoveryController:
 
         advance(seconds)
 
-        self.chaos.tick(
-            self.clock()
-        )
+        if tick_chaos:
+            self.chaos.tick(
+                self.clock()
+            )
 
     @staticmethod
     def _parse_bank(

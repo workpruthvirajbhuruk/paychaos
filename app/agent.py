@@ -15,8 +15,13 @@ Gemini is optional:
 
 Deterministic fallback policy:
     - Method-specific anomaly -> 30% traffic shift.
-    - Latency-driven anomaly -> 30% traffic shift.
+    - Latency-driven anomaly  -> 30% traffic shift.
     - Bank-wide anomaly       -> 40% traffic shift.
+    - Failover destinations use an explicit deterministic preference matrix.
+
+The deterministic failover matrix prevents incidental telemetry volume from
+changing the recovery destination. The matrix still respects the current
+availability set supplied by the recovery controller.
 
 Guardrails remain the final authority regardless of whether the
 recommendation came from Gemini or deterministic policy.
@@ -34,6 +39,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.config import DEFAULT_SETTINGS, Settings
 from app.switch import BankName, ErrorCode
 from app.telemetry import Telemetry, TelemetrySnapshot
+
 
 load_dotenv()
 
@@ -65,6 +71,42 @@ class AIAgent:
     """AI diagnosis and recovery recommendation engine."""
 
     DEFAULT_MODEL = "gemini-3.6-flash"
+
+    # ------------------------------------------------------------------
+    # Deterministic failover policy
+    #
+    # These are preferred destinations, not unconditional routes.
+    # The recovery controller still supplies the currently available
+    # banks, and the selected destination must be present in that set.
+    #
+    # Keeping this matrix deterministic means:
+    #
+    #     same incident + same available banks -> same recommendation
+    #
+    # regardless of incidental dashboard transaction volume.
+    # ------------------------------------------------------------------
+    FAILOVER_PREFERENCES: dict[BankName, tuple[BankName, ...]] = {
+        BankName.HDFC: (
+            BankName.AXIS,
+            BankName.ICICI,
+            BankName.SBI,
+        ),
+        BankName.SBI: (
+            BankName.AXIS,
+            BankName.HDFC,
+            BankName.ICICI,
+        ),
+        BankName.AXIS: (
+            BankName.HDFC,
+            BankName.ICICI,
+            BankName.SBI,
+        ),
+        BankName.ICICI: (
+            BankName.AXIS,
+            BankName.HDFC,
+            BankName.SBI,
+        ),
+    }
 
     def __init__(
         self,
@@ -388,34 +430,44 @@ RULES:
         isolated_bank: BankName,
         available_banks: list[BankName],
     ) -> BankName:
-        """Select the healthiest available destination."""
+        """Select a deterministic preferred destination.
 
-        candidates = [
+        The recovery controller supplies the banks currently considered
+        available. We respect that availability set, but do not rank
+        destinations using incidental telemetry volume.
+
+        This makes the fallback recommendation reproducible and ensures
+        the dashboard, tests, and benchmark observe the same policy.
+        """
+
+        available = {
             bank
             for bank in available_banks
             if bank is not isolated_bank
-        ]
+        }
 
-        if not candidates:
+        if not available:
             raise RuntimeError(
                 "No alternative bank is available."
             )
 
-        if self._telemetry is not None:
-            health = self._telemetry.all_bank_health()
-
-            candidates.sort(
-                key=lambda bank: (
-                    -health[bank].success_rate,
-                    health[bank].p99_latency_ms,
-                    bank.value,
+        preferences = self.FAILOVER_PREFERENCES.get(
+            isolated_bank,
+            tuple(
+                sorted(
+                    available,
+                    key=lambda bank: bank.value,
                 )
-            )
+            ),
+        )
 
-            return candidates[0]
+        for preferred_bank in preferences:
+            if preferred_bank in available:
+                return preferred_bank
 
+        # Defensive fallback for an unknown bank or incomplete matrix.
         return sorted(
-            candidates,
+            available,
             key=lambda bank: bank.value,
         )[0]
 

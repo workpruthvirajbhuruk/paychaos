@@ -315,6 +315,7 @@ MTTR:                      12.0 seconds
 ```
 
 These are measured simulator results from the reproducible deterministic benchmark.
+No real payments or customer funds are involved; all transaction values are synthetic.
 
 ---
 
@@ -345,7 +346,7 @@ Traffic: 30%
 ```text
 Decision: APPROVED
 Traffic: 30% → 30%
-Cooldown: 120s
+Cooldown: 300s
 ```
 
 ### Execution
@@ -494,7 +495,7 @@ python -m pytest -q
 Expected result:
 
 ```text
-37 passed
+38 passed
 ```
 
 ## 4. Run the dashboard
@@ -643,7 +644,7 @@ Current verified deterministic benchmark:
 ✓ 0 guardrail violations
 ✓ 5s MTTD
 ✓ 12s MTTR
-✓ 37 automated tests passing
+✓ 38 automated tests passing
 ```
 
 ---

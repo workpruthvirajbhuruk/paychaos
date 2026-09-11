@@ -3,3 +3,5 @@ rich>=13.9,<15
 python-dotenv>=1.0,<2
 google-genai>=2.22.0,<3
 pytest>=8.0,<10
+fastapi>=0.115,<1
+uvicorn[standard]>=0.30,<1

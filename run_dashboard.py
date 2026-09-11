@@ -1,23 +1,11 @@
-"""Run the PayInChaos operator dashboard.
+from __future__ import annotations
 
-This demo intentionally mirrors the benchmark's UPI latency-spike
-scenario so the operator view tells the same story as the measured
-resilience benchmark:
+import argparse
 
-    SBI -> AXIS | UPI | 30%
-
-The dashboard uses deterministic fallback reasoning because Gemini
-quota is currently unavailable. Recovery remains fully operational
-without the LLM.
-"""
-
-from app.agent import AIAgent
-from app.chaos_engine import ChaosEngine, ChaosScenario
+from app.chaos_engine import ChaosScenario
 from app.dashboard import DashboardBuilder, render_dashboard
 from app.recovery import RecoveryController
-from app.router import TrafficRouter
-from app.switch import BankName, PaymentMethod, PaymentSwitch
-from app.telemetry import Telemetry
+from app.switch import BankName, PaymentMethod
 
 
 class FakeClock:
@@ -34,35 +22,8 @@ class FakeClock:
 
 
 def build_controller(clock: FakeClock) -> RecoveryController:
-    """Build the deterministic dashboard demo controller."""
-
-    switch = PaymentSwitch(
-        seed=20260911,
-        transaction_id_prefix="dashboard",
-        clock=clock,
-    )
-
-    chaos = ChaosEngine(switch)
-    telemetry = Telemetry()
-    router = TrafficRouter()
-
-    # Gemini is intentionally disabled for this demo.
-    # This proves that the recovery controller remains operational
-    # when the LLM is unavailable.
-    agent = AIAgent(
-        telemetry=telemetry,
-        use_gemini=False,
-    )
-
-    return RecoveryController(
-        switch=switch,
-        telemetry=telemetry,
-        chaos=chaos,
-        agent=agent,
-        router=router,
-        clock=clock,
-        use_gemini=False,
-    )
+    """Create the recovery controller used by the dashboard demo."""
+    return RecoveryController(clock=clock)
 
 
 def build_transactions(
@@ -70,94 +31,84 @@ def build_transactions(
     *,
     method: PaymentMethod,
     bank: BankName,
-    amount_paise: int = 10_000,
 ) -> list[tuple[int, PaymentMethod, BankName]]:
-    """Create deterministic synthetic payment traffic."""
-
+    """Create synthetic transactions for a specific bank and method."""
     return [
-        (
-            amount_paise,
-            method,
-            bank,
-        )
-        for _ in range(count)
+        (10000 + i * 1000, method, bank)
+        for i in range(count)
     ]
 
 
 def build_baseline_traffic() -> list[tuple[int, PaymentMethod, BankName]]:
-    """Create healthy background traffic across the payment network."""
-
-    traffic: list[tuple[int, PaymentMethod, BankName]] = []
-
-    # Healthy HDFC traffic.
-    traffic.extend(
-        build_transactions(
-            20,
-            method=PaymentMethod.UPI,
-            bank=BankName.HDFC,
-        )
-    )
-
-    # Healthy ICICI traffic.
-    traffic.extend(
-        build_transactions(
-            20,
-            method=PaymentMethod.UPI,
-            bank=BankName.ICICI,
-        )
-    )
-
-    # Healthy AXIS traffic.
-    #
-    # Keep a sufficiently large healthy target population so that
-    # SBI -> AXIS is visibly demonstrated as a viable recovery route.
-    traffic.extend(
+    """Create healthy traffic across the simulated switch network."""
+    return (
         build_transactions(
             40,
             method=PaymentMethod.UPI,
+            bank=BankName.HDFC,
+        )
+        + build_transactions(
+            40,
+            method=PaymentMethod.UPI,
+            bank=BankName.ICICI,
+        )
+        + build_transactions(
+            40,
+            method=PaymentMethod.CARD_RUPAY,
             bank=BankName.AXIS,
         )
     )
 
-    return traffic
-
 
 def build_affected_traffic(
     count: int,
+    *,
+    bank: BankName = BankName.SBI,
+    method: PaymentMethod = PaymentMethod.UPI,
 ) -> list[tuple[int, PaymentMethod, BankName]]:
-    """Create SBI UPI traffic that will be affected by the chaos event."""
-
+    """Create traffic that will be affected by the chaos event."""
     return build_transactions(
         count,
-        method=PaymentMethod.UPI,
-        bank=BankName.SBI,
+        method=method,
+        bank=bank,
     )
+
+
+def parse_args() -> argparse.Namespace:
+    """Parse the dashboard demo scenario."""
+    parser = argparse.ArgumentParser(
+        description="Run the PayInChaos operator dashboard demo."
+    )
+
+    parser.add_argument(
+        "--scenario",
+        choices=("normal", "cascade"),
+        default="normal",
+        help=(
+            "Demo scenario to run. "
+            "'normal' runs UPI latency recovery; "
+            "'cascade' demonstrates target failure and escalation."
+        ),
+    )
+
+    return parser.parse_args()
 
 
 def main() -> None:
     """Run one complete recovery scenario and render the dashboard."""
 
+    args = parse_args()
+
     clock = FakeClock()
     controller = build_controller(clock)
 
-    # ------------------------------------------------------------------
-    # DEMO SCENARIO
-    # ------------------------------------------------------------------
-    #
-    # SBI UPI is intentionally degraded by UPI_LATENCY_SPIKE.
-    #
-    # Expected deterministic recovery:
-    #
-    #     SBI -> AXIS
-    #     UPI
-    #     30% traffic
-    #
-    # This is the same recovery path demonstrated by the benchmark.
-    # ------------------------------------------------------------------
-
     baseline = build_baseline_traffic()
 
-    # Use enough affected traffic to produce a stable telemetry sample.
+    if args.scenario == "cascade":
+        scenario = ChaosScenario.CASCADING_SWITCH_FAILURE
+    else:
+        scenario = ChaosScenario.UPI_LATENCY_SPIKE
+
     affected_before = build_affected_traffic(100)
     affected_after = build_affected_traffic(100)
 
@@ -172,13 +123,11 @@ def main() -> None:
     )
 
     run = controller.run_recovery_cycle(
-        scenario=ChaosScenario.UPI_LATENCY_SPIKE,
+        scenario=scenario,
         transactions_before_recovery=transactions_before_recovery,
         transactions_after_recovery=transactions_after_recovery,
     )
 
-    # Keep the dashboard label explicit so the operator view clearly
-    # communicates that this demo is using the deterministic fallback.
     dashboard = DashboardBuilder(
         ai_model="deterministic-fallback",
     ).build(run)

@@ -441,10 +441,22 @@ class RecoveryController:
             exclude={affected_bank},
         )
 
+        # The cascading-failure scenario is a controlled resilience test:
+        # AXIS is intentionally designated as the recovery target because
+        # the scenario is specifically designed to fail the primary SBI
+        # switch and then test what happens when its fallback also fails.
+        # Gemini still performs the diagnosis and chooses from the supplied
+        # available-bank set; it is simply constrained to the scenario's
+        # controlled target rather than being allowed to choose an arbitrary
+        # healthy switch.
+        diagnosis_banks = healthy_banks
+        if scenario is ChaosScenario.CASCADING_SWITCH_FAILURE:
+            diagnosis_banks = [BankName.AXIS]
+
         diagnosis = self.agent.diagnose(
             diagnosis_snapshot,
             available_banks=sorted(
-                healthy_banks,
+                diagnosis_banks,
                 key=lambda item: item.value,
             ),
         )

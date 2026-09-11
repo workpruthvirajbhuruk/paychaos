@@ -25,10 +25,6 @@ Thumbs.db
 .coverage
 htmlcov/
 
-# Logs
-*.log
-logs/
-
 # Build artifacts
 dist/
 build/
@@ -36,3 +32,5 @@ build/
 
 # Local benchmark output
 benchmark_results.json
+benchmark_results_fallback.json
+benchmark_results_gemini.json

@@ -350,14 +350,17 @@ class RecoveryController:
         affected_bank = scenario_event.bank
         failure_start = self.clock()
 
+        before_results: list[TransactionResult] = []
+
         for amount, method, bank in (
             transactions_before_recovery
         ):
-            self.process_transaction(
+            _, result, _ = self.process_transaction(
                 amount_paise=amount,
                 method=method,
                 bank=bank,
             )
+            before_results.append(result)
 
         self._advance_time(
             detection_delay_seconds
@@ -456,11 +459,14 @@ class RecoveryController:
             else None
         )
 
+        # Measure the amount attached to transactions that actually failed
+        # during the pre-recovery window. This is intentionally different
+        # from total attempted amount: a successful baseline transaction
+        # must not be reported as lost revenue.
         failed_amount_paise = sum(
-            amount
-            for amount, _, _ in (
-                transactions_before_recovery
-            )
+            result.amount_paise
+            for result in before_results
+            if not result.success
         )
 
         metrics = RecoveryMetrics(

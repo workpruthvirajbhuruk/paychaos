@@ -40,58 +40,20 @@ def test_sbi_upi_recovery() -> None:
 
         transactions_before_recovery=[
             (
-                10000,
+                10000 + i * 1000,
                 PaymentMethod.UPI,
                 BankName.SBI,
-            ),
-            (
-                20000,
-                PaymentMethod.UPI,
-                BankName.SBI,
-            ),
-            (
-                15000,
-                PaymentMethod.UPI,
-                BankName.SBI,
-            ),
-            (
-                25000,
-                PaymentMethod.UPI,
-                BankName.SBI,
-            ),
-            (
-                30000,
-                PaymentMethod.UPI,
-                BankName.SBI,
-            ),
+            )
+            for i in range(100)
         ],
 
         transactions_after_recovery=[
             (
-                10000,
+                10000 + i * 1000,
                 PaymentMethod.UPI,
                 BankName.SBI,
-            ),
-            (
-                20000,
-                PaymentMethod.UPI,
-                BankName.SBI,
-            ),
-            (
-                15000,
-                PaymentMethod.UPI,
-                BankName.SBI,
-            ),
-            (
-                25000,
-                PaymentMethod.UPI,
-                BankName.SBI,
-            ),
-            (
-                30000,
-                PaymentMethod.UPI,
-                BankName.SBI,
-            ),
+            )
+            for i in range(100)
         ],
 
         detection_delay_seconds=5.0,
